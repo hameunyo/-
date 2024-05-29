@@ -62,7 +62,7 @@ void print_train(int train_length, int mm, int mz, int mc) {
 
 int main(void) {
     // 인트로
-    printf("게임 시작\n");
+    printf("게임 시작11111111111111\n");
     Sleep(500);
 
     srand((unsigned int)time(NULL));
