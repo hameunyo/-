@@ -52,7 +52,7 @@ void print_train(int train_length, int mm, int mz, int mc) {
         }
     }
     printf("\n");
-
+    azzzz
     // 열차 세 번째 줄
     for (int i = 0; i < train_length; i++) {
         printf("#");
