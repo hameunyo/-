@@ -52,7 +52,7 @@ void print_train(int train_length, int mm, int mz, int mc) {
         }
     }
     printf("\n");
-    azzzz
+
     // 열차 세 번째 줄
     for (int i = 0; i < train_length; i++) {
         printf("#");
@@ -62,7 +62,7 @@ void print_train(int train_length, int mm, int mz, int mc) {
 
 int main(void) {
     // 인트로
-    printf("게임 시작11111111111111\n");
+    printf("게임 시작\n");
     Sleep(500);
 
     srand((unsigned int)time(NULL));
