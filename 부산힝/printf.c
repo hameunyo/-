@@ -1,7 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <windows.h> // Windows에서 Sleep 함수 사용을 위해
+
 
 #define LEN_MIN 15 // 열차 길이
 #define LEN_MAX 50
@@ -15,11 +13,6 @@
 // 마동석 이동 방향
 #define MOVE_LEFT 1 
 #define MOVE_STAY 0
-
-// 좀비의 공격 대상
-#define ATK_NONE 0
-#define ATK_CITIZEN 1
-#define ATK_DONGSEOK 2
 
 // 마동석 행동
 #define ACTION_REST 0
@@ -60,48 +53,138 @@ void print_train(int train_length, int mm, int mz, int mc) {
     printf("\n");
 }
 
+int get_input(const char* prompt, int min, int max) {
+    int value;
+    while (1) {
+        printf("%s (%d~%d): ", prompt, min, max);
+        scanf_s("%d", &value);
+        if (value >= min && value <= max) {
+            break;
+        }
+        else {
+            printf("잘못 입력했습니다. 다시 입력해주세요.\n");
+        }
+    }
+    return value;
+}
+
+void zombie_move(int* mz, int mm, int mc, int m_a, int c_a, int turn) {
+    if (turn % 2 != 0) {
+        if (c_a > m_a || (c_a == m_a && *mz < mm)) {
+            if (*mz - 1 > mc) {
+                (*mz)--;
+            }
+        }
+        else if (c_a < m_a || (c_a == m_a && *mz > mm)) {
+            if (*mz + 1 != mm) {
+                (*mz)++;
+            }
+        }
+        else {
+            if (*mz - 1 > mc) {
+                (*mz)--;
+            }
+        }
+    }
+}
+
+void citizen_move(int* mc, int p_p) {
+    int r = rand() % 101;
+    if (100 - p_p >= r) {
+        (*mc)--;
+    }
+}
+
+void madongseok_move(int* mm, int mz) {
+    int MM;
+    while (1) {
+        printf("madongseok move (%d: stay, %d: left)>>> ", MOVE_STAY, MOVE_LEFT);
+        scanf_s("%d", &MM);
+        if (MM <= MOVE_LEFT && MM >= MOVE_STAY) {
+            if (MM == MOVE_LEFT && *mm - 1 == mz) {
+                continue;
+            }
+            else {
+                break;
+            }
+        }
+    }
+    if (MM == MOVE_LEFT) {
+        (*mm)--;
+    }
+}
+
+void madongseok_action(int mm, int mz, int* m_a, int* S_M, int p_p, int* zombie_can_move) {
+    int m_action;
+    if (mm != mz + 1) {
+        printf("madongseok action(%d.rest, %d.provoke)>>> ", ACTION_REST, ACTION_PROVOKE);
+    }
+    else {
+        printf("madongseok action(%d.rest, %d.provoke, %d.pull)>>> ", ACTION_REST, ACTION_PROVOKE, ACTION_PULL);
+    }
+    scanf_s("%d", &m_action);
+    printf("\n");
+
+    int prev_a = *m_a;
+    int prev_S_M = *S_M;
+    if (m_action == ACTION_REST) {
+        (*m_a)--;
+        (*S_M)++;
+        if (*m_a < AGGRO_MIN) {
+            *m_a = AGGRO_MIN;
+        }
+        if (*S_M > STM_MAX) {
+            *S_M = STM_MAX;
+        }
+        printf("madongseok rests...\n");
+        printf("madongseok: %d (aggro: %d -> %d, stamina: %d -> %d)\n", mm, prev_a, *m_a, prev_S_M, *S_M);
+    }
+    else if (m_action == ACTION_PROVOKE) {
+        *m_a = AGGRO_MAX;
+        printf("madongseok provokes zombie...\n");
+        printf("madongseok: %d (aggro: %d -> %d, stamina: %d)\n", mm, prev_a, *m_a, *S_M);
+    }
+    else if (m_action == ACTION_PULL) {
+        *m_a += 2;
+        (*S_M)--;
+        if (*m_a > AGGRO_MAX) {
+            *m_a = AGGRO_MAX;
+        }
+        if (*S_M < STM_MIN) {
+            *S_M = STM_MIN;
+        }
+
+        int pull_success = rand() % 101;
+        if (pull_success < (100 - p_p)) {
+            printf("madongseok pulled zombie... Next turn, it can't move\n");
+            *zombie_can_move = 0; // 다음 턴에 좀비가 이동하지 못함
+        }
+        else {
+            printf("madongseok failed to pull zombie\n");
+        }
+
+        printf("madongseok: %d (aggro: %d -> %d, stamina: %d -> %d)\n", mm, prev_a, *m_a, prev_S_M, *S_M);
+    }
+}
+
 int main(void) {
     // 인트로
     printf("게임 시작\n");
     Sleep(500);
 
     srand((unsigned int)time(NULL));
-    printf("열차 길이 (%d~%d): ", LEN_MIN, LEN_MAX);
-    int train_length, p_p;
-    int S_M, bS_M;
-    scanf_s("%d", &train_length);
 
-    int mm, mz, mc, c_a = 1, bc_a, bm_a, m_a = 1;
-    mm = train_length - 2;
-    mz = train_length - 3;
-    mc = train_length - 6;
-    int b_mz, b_mc, b_mm;
-    int MM;
-    int m_rest = ACTION_REST, m_pro = ACTION_PROVOKE, m_pull = ACTION_PULL;
-    int m_action;
-
-    // 열차 길이 잘못 입력한 경우
-    if (train_length < LEN_MIN || train_length > LEN_MAX) {
-        printf("열차 길이를 다시 입력해주세요.\n");
-        return 0;
-    }
-
-    // 마동석 체력
-    printf("마동석 체력 (%d~%d): ", STM_MIN, STM_MAX);
-    scanf_s("%d", &S_M);
-    if (S_M < STM_MIN || S_M > STM_MAX) {
-        printf("잘못 입력했습니다.\n");
-        return 0;
-    }
-
-    // 확률 잘못 입력한 경우
-    printf("확률 (%d~%d): ", PROB_MIN, PROB_MAX);
-    scanf_s("%d", &p_p);
-    if (p_p < PROB_MIN || p_p > PROB_MAX) {
-        printf("확률을 다시 입력해주세요.\n");
-        return 0;
-    }
+    int train_length = get_input("열차 길이", LEN_MIN, LEN_MAX);
+    int S_M = get_input("마동석 체력", STM_MIN, STM_MAX);
+    int p_p = get_input("확률", PROB_MIN, PROB_MAX);
     printf("\n");
+
+    int mm = train_length - 2;
+    int mz = train_length - 3;
+    int mc = train_length - 6;
+    int c_a = 1, m_a = 1;
+    int turn = 1;
+    int zombie_can_move = 1; // 좀비가 이동 가능한지 여부
 
     print_train(train_length, mm, mz, mc);
 
@@ -109,38 +192,16 @@ int main(void) {
     printf("게임 시작\n");
     Sleep(500);
 
-    int turn = 1;
-    int zombie_can_move = 1; // 좀비가 이동 가능한지 여부
-
-    // while 시작
     while (1) {
-        int r = rand() % 101;
-        b_mm = mm;
-        b_mz = mz;
-        b_mc = mc;
-        bc_a = c_a;
-        bm_a = m_a;
-        bS_M = S_M;
+        int b_mm = mm, b_mz = mz, b_mc = mc;
+        int bc_a = c_a, bm_a = m_a;
+        int bS_M = S_M;
 
         // 좀비 움직임
-        if (turn % 2 != 0 && zombie_can_move) {
-            if (c_a > m_a || (c_a == m_a && mz < mm)) {
-                mz--;
-            }
-            else if (c_a < m_a || (c_a == m_a && mz > mm)) {
-                if (mz + 1 != mm) {
-                    mz++;
-                }
-            }
-            else {
-                mz--;
-            }
-        }
+        zombie_move(&mz, mm, mc, m_a, c_a, turn);
 
         // 시민 움직임
-        if (100 - p_p >= r) {
-            mc--;
-        }
+        citizen_move(&mc, p_p);
 
         print_train(train_length, mm, mz, mc);
 
@@ -176,34 +237,23 @@ int main(void) {
         }
         printf("\n");
 
-        // 마동석 이동 입력 반복
-        while (1) {
-            printf("madongseok move (%d: stay, %d: left)>>> ", MOVE_STAY, MOVE_LEFT);
-            scanf_s("%d", &MM);
-            if (MM <= MOVE_LEFT && MM >= MOVE_STAY) {
-                if (MM == MOVE_LEFT && mm - 1 == mz) {
-                    continue; // 좀비와 동일한 위치가 되면 다시 입력 받기
-                }
-                else {
-                    break;
-                }
-            }
-        }
+        // 마동석 이동
+        madongseok_move(&mm, mz);
 
         // 마동석의 이동 결과에 따라 열차 상태를 다시 출력
-        if (MM == MOVE_STAY) {
-            int prev_a = m_a; // 이전 어그로 값 저장
+        if (mm == b_mm) {
+            int prev_a = m_a;
+
             m_a--;
             if (m_a < AGGRO_MIN) {
-                m_a = AGGRO_MIN; // 마동석의 어그로가 AGGRO_MIN 이하로 내려가지 않도록 함
+                m_a = AGGRO_MIN;
             }
             print_train(train_length, mm, mz, mc);
             printf("\n");
             printf("madongseok: stay %d (aggro: %d -> %d, stamina: %d)\n", mm, prev_a, m_a, S_M);
         }
-        else if (MM == MOVE_LEFT) {
-            int prev_a = m_a; // 이전 어그로 값 저장
-            mm--;
+        else {
+            int prev_a = m_a;
             print_train(train_length, mm, mz, mc);
             if (mm == mz) {
                 mm++;
@@ -226,7 +276,6 @@ int main(void) {
 
         // 좀비가 인접한 인간을 공격하는 로직
         if ((mz == mm - 1 && mz == mc + 1) || (mz == mm && mz == mc)) {
-            // 시민과 마동석이 모두 인접한 경우
             if (m_a >= c_a) {
                 bS_M = S_M;  // 공격 전 체력 저장
                 S_M--;
@@ -258,60 +307,8 @@ int main(void) {
             printf("zombie attacked nobody\n");
         }
 
-        // 마동석 좀비와 인접 코드
-        if (mm != mz + 1) {
-            printf("madongseok action(%d.rest, %d.provoke)>>> ", m_rest, m_pro);
-            scanf_s("%d", &m_action);
-        }
-        else if (mm == mz + 1) {
-            printf("madongseok action(%d.rest, %d.provoke, %d.pull)>>> ", m_rest, m_pro, m_pull);
-            scanf_s("%d", &m_action);
-        }
-
-        printf("\n");
-
         // 마동석 행동
-        int prev_a = m_a; // 이전 어그로 값 저장
-        int prev_S_M = S_M; // 이전 체력 값 저장
-        if (m_action == ACTION_REST) {
-            m_a--;
-            S_M++;
-            if (m_a < AGGRO_MIN) {
-                m_a = AGGRO_MIN;
-            }
-            if (S_M > STM_MAX) {
-                S_M = STM_MAX;
-            }
-            printf("madongseok rests...\n");
-            printf("madongseok: %d (aggro: %d -> %d, stamina: %d -> %d)\n", mm, prev_a, m_a, prev_S_M, S_M);
-        }
-        else if (m_action == ACTION_PROVOKE) {
-            m_a = AGGRO_MAX;
-            printf("madongseok provokes zombie...\n");
-            printf("madongseok: %d (aggro: %d -> %d, stamina: %d)\n", mm, prev_a, m_a, S_M);
-        }
-        else if (m_action == ACTION_PULL) {
-            prev_S_M = S_M; // 이전 체력 값 저장
-            m_a += 2;
-            S_M--;
-            if (m_a > AGGRO_MAX) {
-                m_a = AGGRO_MAX;
-            }
-            if (S_M < STM_MIN) {
-                S_M = STM_MIN;
-            }
-
-            int pull_success = rand() % 101;
-            if (pull_success < (100 - p_p)) {
-                printf("madongseok pulled zombie... Next turn, it can't move\n");
-                zombie_can_move = 0; // 다음 턴에 좀비가 이동하지 못함
-            }
-            else {
-                printf("madongseok failed to pull zombie\n");
-            }
-
-            printf("madongseok: %d (aggro: %d -> %d, stamina: %d -> %d)\n", mm, prev_a, m_a, prev_S_M, S_M);
-        }
+        madongseok_action(mm, mz, &m_a, &S_M, p_p, &zombie_can_move);
 
         printf("\n");
 
